@@ -1,0 +1,12 @@
+{
+  "units": "m",
+  "long_name": "Visibility",
+  "standard_name": "visibility_in_air",
+  "coordinates": "expected_forecast_length latitude longitude spatial_ref valid_time",
+  "_ARRAY_DIMENSIONS": [
+    "time",
+    "step",
+    "y",
+    "x"
+  ]
+}
