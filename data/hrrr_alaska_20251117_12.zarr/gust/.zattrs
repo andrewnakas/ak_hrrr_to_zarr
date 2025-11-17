@@ -1,0 +1,12 @@
+{
+  "units": "m/s",
+  "long_name": "Wind gust",
+  "standard_name": "wind_speed_of_gust",
+  "coordinates": "expected_forecast_length latitude longitude spatial_ref valid_time",
+  "_ARRAY_DIMENSIONS": [
+    "time",
+    "step",
+    "y",
+    "x"
+  ]
+}
