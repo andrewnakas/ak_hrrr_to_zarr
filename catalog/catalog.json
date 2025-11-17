@@ -1,7 +1,7 @@
 {
   "title": "Alaska HRRR Data Catalog",
   "description": "High-Resolution Rapid Refresh (HRRR) forecast data for Alaska - Rolling 24-hour window",
-  "generated": "2025-11-17T03:59:38.098436Z",
+  "generated": "2025-11-17T07:54:54.988014Z",
   "datasets": [
     {
       "id": "noaa-hrrr-alaska-forecast",
@@ -11,8 +11,8 @@
       "model": "HRRR",
       "variant": "alaska-forecast",
       "dimensions": {
-        "init_time": 1,
-        "lead_time": 49,
+        "time": 1,
+        "step": 49,
         "y": 919,
         "x": 1299
       },
@@ -44,11 +44,11 @@
       ],
       "coordinates": [
         "expected_forecast_length",
-        "init_time",
         "latitude",
-        "lead_time",
         "longitude",
         "spatial_ref",
+        "step",
+        "time",
         "valid_time",
         "x",
         "y"
@@ -57,32 +57,10 @@
         "start": "2024-11-13T09:00:00.000000000",
         "end": "2024-11-13T09:00:00.000000000"
       },
-      "zarr_path": "data/hrrr_alaska_20251117_03.zarr",
-      "forecast_cycles": 23,
+      "zarr_path": "data/hrrr_alaska_20251117_06.zarr",
+      "forecast_cycles": 1,
       "available_forecasts": [
-        "hrrr_alaska_20251117_03.zarr",
-        "hrrr_alaska_20251117_00.zarr",
-        "hrrr_alaska_20251116_21.zarr",
-        "hrrr_alaska_20251116_18.zarr",
-        "hrrr_alaska_20251116_15.zarr",
-        "hrrr_alaska_20251116_12.zarr",
-        "hrrr_alaska_20251116_06.zarr",
-        "hrrr_alaska_20251116_03.zarr",
-        "hrrr_alaska_20251116_00.zarr",
-        "hrrr_alaska_20251115_21.zarr",
-        "hrrr_alaska_20251115_18.zarr",
-        "hrrr_alaska_20251115_15.zarr",
-        "hrrr_alaska_20251115_12.zarr",
-        "hrrr_alaska_20251115_06.zarr",
-        "hrrr_alaska_20251115_03.zarr",
-        "hrrr_alaska_20251115_00.zarr",
-        "hrrr_alaska_20251114_21.zarr",
-        "hrrr_alaska_20251114_18.zarr",
-        "hrrr_alaska_20251114_15.zarr",
-        "hrrr_alaska_20251114_12.zarr",
-        "hrrr_alaska_20251114_09.zarr",
-        "hrrr_alaska_20251114_06.zarr",
-        "hrrr_alaska_20251114_05.zarr"
+        "hrrr_alaska_20251117_06.zarr"
       ]
     }
   ]
