@@ -162,22 +162,22 @@ class RegionJob(ABC, Generic[DataVarT, SourceFileCoordT]):
         from datetime import timedelta
 
         # Create dimension coordinates for just this region
-        init_times = []
+        times = []
         current = self.processing_region.init_time_start
         while current <= self.processing_region.init_time_end:
-            init_times.append(current)
+            times.append(current)
             current += timedelta(hours=3)  # Alaska HRRR frequency
 
-        init_times = np.array(init_times, dtype='datetime64[ns]')
+        times = np.array(times, dtype='datetime64[ns]')
 
         # Get other dimension coordinates
-        lead_times = np.arange(0, 49, dtype='timedelta64[h]')
+        steps = np.arange(0, 49, dtype='timedelta64[h]')
         x = np.arange(1299, dtype=np.float64) * 3000.0
         y = np.arange(919, dtype=np.float64) * 3000.0
 
         dim_coords = {
-            'init_time': init_times,
-            'lead_time': lead_times,
+            'time': times,
+            'step': steps,
             'y': y,
             'x': x,
         }
@@ -261,13 +261,13 @@ class RegionJob(ABC, Generic[DataVarT, SourceFileCoordT]):
                     # Match init_time and lead_time from the source file coord
                     if hasattr(file_coord, 'init_time') and hasattr(file_coord, 'lead_time'):
                         # Find the indices in the dataset
-                        init_idx = np.where(region_ds.init_time.values == np.datetime64(file_coord.init_time))[0]
-                        lead_idx = file_coord.lead_time
+                        time_idx = np.where(region_ds.time.values == np.datetime64(file_coord.init_time))[0]
+                        step_idx = file_coord.lead_time
 
-                        if len(init_idx) > 0:
-                            init_idx = init_idx[0]
+                        if len(time_idx) > 0:
+                            time_idx = time_idx[0]
                             # Assign the data (shape should be y, x)
-                            region_ds[var_name].values[init_idx, lead_idx, :, :] = data
+                            region_ds[var_name].values[time_idx, step_idx, :, :] = data
                         else:
                             print(f"  Warning: init_time {file_coord.init_time} not found in dataset")
 

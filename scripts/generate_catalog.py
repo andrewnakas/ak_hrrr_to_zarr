@@ -44,8 +44,8 @@ def generate_catalog() -> None:
                 "variables": list(ds.data_vars),
                 "coordinates": list(ds.coords),
                 "temporal_extent": {
-                    "start": str(ds.init_time.min().values),
-                    "end": str(ds.init_time.max().values),
+                    "start": str(ds.time.min().values),
+                    "end": str(ds.time.max().values),
                 },
                 "zarr_path": str(zarr_path),
                 "forecast_cycles": len(zarr_stores),

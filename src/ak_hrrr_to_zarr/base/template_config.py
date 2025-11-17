@@ -68,7 +68,7 @@ class TemplateConfig(BaseModel, ABC, Generic[DataVarT]):
 
     # Dimension definitions
     dimensions: tuple[str, ...]
-    append_dim: str  # The dimension to append to (e.g., "init_time")
+    append_dim: str  # The dimension to append to (e.g., "time")
     append_dim_start: datetime
     append_dim_freq: str  # Pandas frequency string (e.g., "3h", "6h")
 

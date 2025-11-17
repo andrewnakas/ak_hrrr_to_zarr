@@ -71,7 +71,7 @@ class Dataset(ABC, Generic[DataVarT, SourceFileCoordT]):
 
         # Clean up attributes to avoid encoding conflicts
         # Remove units from time coordinates as xarray handles these automatically
-        for coord in ["init_time", "lead_time", "valid_time"]:
+        for coord in ["time", "step", "valid_time"]:
             if coord in ds.coords and "units" in ds[coord].attrs:
                 ds[coord].attrs = {k: v for k, v in ds[coord].attrs.items() if k != "units"}
 

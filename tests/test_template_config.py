@@ -14,8 +14,8 @@ def test_template_config_initialization() -> None:
     """Test that template config initializes correctly."""
     config = AlaskaHrrrTemplateConfig()
 
-    assert config.dimensions == ("init_time", "lead_time", "y", "x")
-    assert config.append_dim == "init_time"
+    assert config.dimensions == ("time", "step", "y", "x")
+    assert config.append_dim == "time"
     assert config.append_dim_freq == "3h"
 
 
@@ -38,8 +38,8 @@ def test_dimension_coordinates() -> None:
     coords = config.dimension_coordinates(end)
 
     # Check dimensions exist
-    assert "init_time" in coords
-    assert "lead_time" in coords
+    assert "time" in coords
+    assert "step" in coords
     assert "y" in coords
     assert "x" in coords
 
@@ -48,7 +48,7 @@ def test_dimension_coordinates() -> None:
     assert len(coords["y"]) == 919
 
     # Check lead times (0-48 hours)
-    assert len(coords["lead_time"]) == 49
+    assert len(coords["step"]) == 49
 
 
 def test_data_vars() -> None:
@@ -74,8 +74,8 @@ def test_get_template() -> None:
     template_ds = config.get_template(end)
 
     # Check dimensions
-    assert "init_time" in template_ds.dims
-    assert "lead_time" in template_ds.dims
+    assert "time" in template_ds.dims
+    assert "step" in template_ds.dims
     assert "y" in template_ds.dims
     assert "x" in template_ds.dims
 

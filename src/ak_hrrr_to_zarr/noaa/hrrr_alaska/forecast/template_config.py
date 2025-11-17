@@ -23,8 +23,8 @@ class AlaskaHrrrTemplateConfig(TemplateConfig[DataVariableConfig]):
     model_config = ConfigDict(frozen=True)
 
     # Alaska HRRR grid dimensions: 1299 x 919
-    dimensions: tuple[str, ...] = ("init_time", "lead_time", "y", "x")
-    append_dim: str = "init_time"
+    dimensions: tuple[str, ...] = ("time", "step", "y", "x")
+    append_dim: str = "time"
     # Start from July 2018 (when Alaska HRRR became operational)
     append_dim_start: datetime = datetime(2018, 7, 13, 0, 0, 0)
     # Alaska HRRR updates every 3 hours
@@ -56,10 +56,10 @@ class AlaskaHrrrTemplateConfig(TemplateConfig[DataVariableConfig]):
             Dictionary mapping dimension names to coordinate arrays
         """
         # Time coordinates
-        init_times = self.append_dim_coordinates(append_dim_end).values
+        times = self.append_dim_coordinates(append_dim_end).values
 
-        # Lead times: 0-48 hours (we'll store max 48h, actual may be 18h for some cycles)
-        lead_times = np.arange(0, 49, dtype="timedelta64[h]")
+        # Step times: 0-48 hours (we'll store max 48h, actual may be 18h for some cycles)
+        steps = np.arange(0, 49, dtype="timedelta64[h]")
 
         # Spatial coordinates (Alaska HRRR grid: 1299 x 919)
         # Polar stereographic projection
@@ -68,8 +68,8 @@ class AlaskaHrrrTemplateConfig(TemplateConfig[DataVariableConfig]):
         y = np.arange(919, dtype=np.float64) * 3000.0  # meters
 
         return {
-            "init_time": init_times,
-            "lead_time": lead_times,
+            "time": times,
+            "step": steps,
             "y": y,
             "x": x,
         }
@@ -88,15 +88,15 @@ class AlaskaHrrrTemplateConfig(TemplateConfig[DataVariableConfig]):
         """
         coords = {}
 
-        # Valid time = init_time + lead_time
-        init_times = dim_coords["init_time"]
-        lead_times = dim_coords["lead_time"]
+        # Valid time = time + step
+        times = dim_coords["time"]
+        steps = dim_coords["step"]
 
         # Create 2D grid of valid times
-        valid_time = init_times[:, np.newaxis] + lead_times[np.newaxis, :]
+        valid_time = times[:, np.newaxis] + steps[np.newaxis, :]
         coords["valid_time"] = xr.DataArray(
             valid_time,
-            dims=("init_time", "lead_time"),
+            dims=("time", "step"),
             attrs={
                 "long_name": "Valid forecast time",
                 "standard_name": "time",
@@ -108,7 +108,7 @@ class AlaskaHrrrTemplateConfig(TemplateConfig[DataVariableConfig]):
         # Cycles at 03/09/15/21 UTC have 18h forecasts
         init_hours = np.array(
             [np.datetime64(t, "h").astype("datetime64[h]").astype(int) % 24
-             for t in init_times]
+             for t in times]
         )
         expected_length = np.where(
             np.isin(init_hours, [0, 6, 12, 18]),
@@ -117,7 +117,7 @@ class AlaskaHrrrTemplateConfig(TemplateConfig[DataVariableConfig]):
         )
         coords["expected_forecast_length"] = xr.DataArray(
             expected_length,
-            dims=("init_time",),
+            dims=("time",),
             attrs={
                 "long_name": "Expected forecast length",
                 "units": "hours",
@@ -184,14 +184,14 @@ class AlaskaHrrrTemplateConfig(TemplateConfig[DataVariableConfig]):
     def coords(self) -> dict[str, CoordinateConfig]:
         """Return coordinate configurations."""
         return {
-            "init_time": CoordinateConfig(
+            "time": CoordinateConfig(
                 dtype="datetime64[ns]",
-                chunks={"init_time": 1},
+                chunks={"time": 1},
                 units="seconds since 1970-01-01",
                 long_name="Forecast initialization time",
                 standard_name="forecast_reference_time",
             ),
-            "lead_time": CoordinateConfig(
+            "step": CoordinateConfig(
                 dtype="timedelta64[ns]",
                 units="hours",
                 long_name="Forecast lead time",
@@ -213,11 +213,11 @@ class AlaskaHrrrTemplateConfig(TemplateConfig[DataVariableConfig]):
     @property
     def data_vars(self) -> list[DataVariableConfig]:
         """Return data variable configurations."""
-        # Chunk sizes: 1 init_time x 49 lead_times x ~265 y x ~300 x
+        # Chunk sizes: 1 time x 49 steps x ~265 y x ~300 x
         # This gives ~15-20MB chunks uncompressed, ~3-5MB compressed
         chunk_config = {
-            "init_time": 1,
-            "lead_time": 49,
+            "time": 1,
+            "step": 49,
             "y": 265,
             "x": 300,
         }

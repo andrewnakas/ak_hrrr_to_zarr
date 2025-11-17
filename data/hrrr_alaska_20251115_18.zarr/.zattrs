@@ -1,9 +1,0 @@
-{
-  "id": "noaa-hrrr-alaska-forecast",
-  "title": "NOAA HRRR Alaska Forecast",
-  "description": "High-Resolution Rapid Refresh (HRRR) forecast data for Alaska domain. 3km resolution, polar stereographic projection, updated every 3 hours. 48-hour forecasts for 00/06/12/18 UTC cycles, 18-hour forecasts for 03/09/15/21 UTC cycles.",
-  "version": "1.0.0",
-  "provider": "NOAA",
-  "model": "HRRR",
-  "variant": "alaska-forecast"
-}
