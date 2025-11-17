@@ -1,0 +1,12 @@
+{
+  "units": "%",
+  "long_name": "2 meter relative humidity",
+  "standard_name": "relative_humidity",
+  "coordinates": "expected_forecast_length latitude longitude spatial_ref valid_time",
+  "_ARRAY_DIMENSIONS": [
+    "init_time",
+    "lead_time",
+    "y",
+    "x"
+  ]
+}

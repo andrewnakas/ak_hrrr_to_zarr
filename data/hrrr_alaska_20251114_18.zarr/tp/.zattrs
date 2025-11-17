@@ -1,0 +1,12 @@
+{
+  "units": "kg/m^2",
+  "long_name": "Total precipitation",
+  "standard_name": "precipitation_amount",
+  "coordinates": "expected_forecast_length latitude longitude spatial_ref valid_time",
+  "_ARRAY_DIMENSIONS": [
+    "init_time",
+    "lead_time",
+    "y",
+    "x"
+  ]
+}

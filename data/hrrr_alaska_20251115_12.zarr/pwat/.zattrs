@@ -1,0 +1,12 @@
+{
+  "units": "kg/m^2",
+  "long_name": "Precipitable water",
+  "standard_name": "atmosphere_mass_content_of_water_vapor",
+  "coordinates": "expected_forecast_length latitude longitude spatial_ref valid_time",
+  "_ARRAY_DIMENSIONS": [
+    "init_time",
+    "lead_time",
+    "y",
+    "x"
+  ]
+}

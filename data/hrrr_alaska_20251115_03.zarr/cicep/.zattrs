@@ -1,0 +1,11 @@
+{
+  "units": "categorical",
+  "long_name": "Categorical ice pellets",
+  "coordinates": "expected_forecast_length latitude longitude spatial_ref valid_time",
+  "_ARRAY_DIMENSIONS": [
+    "init_time",
+    "lead_time",
+    "y",
+    "x"
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "long_name": "Expected forecast length",
+  "units": "hours",
+  "_ARRAY_DIMENSIONS": [
+    "init_time"
+  ]
+}
