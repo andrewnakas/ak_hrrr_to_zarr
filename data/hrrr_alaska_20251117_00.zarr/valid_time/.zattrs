@@ -1,0 +1,10 @@
+{
+  "long_name": "Valid forecast time",
+  "standard_name": "time",
+  "units": "hours since 2024-11-13 09:00:00",
+  "calendar": "proleptic_gregorian",
+  "_ARRAY_DIMENSIONS": [
+    "init_time",
+    "lead_time"
+  ]
+}
