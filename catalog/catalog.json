@@ -1,7 +1,7 @@
 {
   "title": "Alaska HRRR Data Catalog",
   "description": "High-Resolution Rapid Refresh (HRRR) forecast data for Alaska - Rolling 24-hour window",
-  "generated": "2025-11-18T06:48:28.392380Z",
+  "generated": "2025-11-18T09:37:56.433893Z",
   "datasets": [
     {
       "id": "noaa-hrrr-alaska-forecast",
