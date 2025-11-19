@@ -1,0 +1,12 @@
+{
+  "units": "m",
+  "long_name": "Geopotential height at cloud ceiling",
+  "standard_name": "geopotential_height_at_cloud_ceiling",
+  "coordinates": "expected_forecast_length latitude longitude spatial_ref valid_time",
+  "_ARRAY_DIMENSIONS": [
+    "time",
+    "step",
+    "y",
+    "x"
+  ]
+}
