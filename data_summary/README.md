@@ -1,7 +1,7 @@
 Alaska HRRR Zarr Datasets
 =========================
 
-Generated: 2025-11-20 09:37:30 UTC
+Generated: 2025-11-20 13:04:20 UTC
 
 Optimized storage - keeps only:
   - Last long forecast (00/06/12/18 UTC - 48 hours)
@@ -9,6 +9,6 @@ Optimized storage - keeps only:
 
 Available forecasts:
   - hrrr_alaska_20251120_03.zarr: 608M
-  - hrrr_alaska_20251120_06.zarr: 608M
+  - hrrr_alaska_20251120_12.zarr: 608M
 
 Total data directory size: 1.2G
