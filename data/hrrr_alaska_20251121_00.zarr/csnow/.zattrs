@@ -1,0 +1,11 @@
+{
+  "units": "categorical",
+  "long_name": "Categorical snow",
+  "coordinates": "expected_forecast_length latitude longitude spatial_ref valid_time",
+  "_ARRAY_DIMENSIONS": [
+    "time",
+    "step",
+    "y",
+    "x"
+  ]
+}
