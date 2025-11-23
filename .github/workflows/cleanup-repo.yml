@@ -1,0 +1,75 @@
+name: Cleanup Repository
+
+on:
+  # Run weekly to keep repo size manageable
+  schedule:
+    - cron: '0 0 * * 0'  # Every Sunday at midnight UTC
+
+  # Allow manual triggering
+  workflow_dispatch:
+    inputs:
+      force_cleanup:
+        description: 'Force aggressive cleanup (rewrites history)'
+        required: false
+        default: 'false'
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history needed for cleanup
+
+      - name: Check repository size
+        run: |
+          echo "=== Repository size analysis ==="
+          git count-objects -vH
+
+          echo ""
+          echo "=== Largest objects in history ==="
+          git rev-list --objects --all | \
+            git cat-file --batch-check='%(objecttype) %(objectname) %(objectsize) %(rest)' | \
+            sed -n 's/^blob //p' | \
+            sort -rnk2 | \
+            head -20 | \
+            while read sha size path; do
+              echo "$(numfmt --to=iec-i --suffix=B $size) $path"
+            done
+
+      - name: Remove data files from history (if requested)
+        if: ${{ github.event.inputs.force_cleanup == 'true' }}
+        run: |
+          echo "=== Removing data files from git history ==="
+
+          # Install git-filter-repo if not available
+          pip install git-filter-repo
+
+          # Remove all zarr data from history
+          git filter-repo --path-glob 'data/*.zarr' --invert-paths --force || true
+          git filter-repo --path-glob 'data/hrrr_alaska_*.zarr' --invert-paths --force || true
+
+          echo "=== Repository size after cleanup ==="
+          git count-objects -vH
+
+      - name: Garbage collection
+        run: |
+          echo "=== Running git garbage collection ==="
+          git reflog expire --expire=now --all
+          git gc --prune=now --aggressive
+
+          echo "=== Final repository size ==="
+          git count-objects -vH
+
+      - name: Force push cleaned history (if requested)
+        if: ${{ github.event.inputs.force_cleanup == 'true' }}
+        run: |
+          echo "=== Force pushing cleaned history ==="
+          git push origin --force --all
+          git push origin --force --tags
