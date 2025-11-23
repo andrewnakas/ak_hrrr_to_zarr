@@ -53,9 +53,10 @@ htmlcov/
 downloads/
 tmp/
 
-# Zarr stores - allow timestamped forecasts (rolling 24-hour window)
-# These are committed to git for the last 8 cycles (~3.3 GB total)
-# Older forecasts are automatically deleted by the workflow
+# Zarr stores - DO NOT commit to git (causes repo bloat)
+# Data is published as artifacts and GitHub releases instead
+data/*.zarr/
+data/hrrr_alaska_*.zarr/
 
 # Templates
 templates/*.zarr/

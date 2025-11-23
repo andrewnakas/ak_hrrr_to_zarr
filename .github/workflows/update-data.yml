@@ -12,7 +12,6 @@ on:
   push:
     branches:
       - main
-      - claude/**
 
 permissions:
   contents: write
@@ -29,10 +28,29 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: Free up disk space
+        run: |
+          echo "=== Initial disk space ==="
+          df -h /
+
+          # Remove unnecessary large packages to free ~30GB
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          sudo rm -rf /usr/local/share/boost
+          sudo rm -rf /usr/share/swift
+
+          # Clean apt cache
+          sudo apt-get clean
+
+          echo "=== Disk space after cleanup ==="
+          df -h /
+
+      - name: Checkout repository (shallow)
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Full history for proper commits
+          fetch-depth: 1  # Shallow clone to save space
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -48,23 +66,17 @@ jobs:
         run: |
           uv sync --all-extras
 
-      - name: Create data directory
+      - name: Create directories
         run: |
-          mkdir -p data
-          mkdir -p downloads
+          mkdir -p data downloads
 
       - name: Run operational update
         run: |
-          # Determine the most recent valid HRRR cycle (00, 03, 06, 09, 12, 15, 18, 21 UTC)
+          # Determine the most recent valid HRRR cycle
           CURRENT_HOUR=$(date -u +"%H")
-
-          # Round down to nearest 3-hour cycle
           CYCLE_HOUR=$((CURRENT_HOUR / 3 * 3))
-
-          # Format with leading zero
           CYCLE_HOUR=$(printf "%02d" $CYCLE_HOUR)
 
-          # Create timestamp with valid cycle hour
           TIMESTAMP=$(date -u +"%Y%m%d")_${CYCLE_HOUR}
           OUTPUT_DIR="data/hrrr_alaska_${TIMESTAMP}.zarr"
 
@@ -72,140 +84,86 @@ jobs:
           echo "Using HRRR cycle: $CYCLE_HOUR UTC"
           echo "Creating Zarr store: $OUTPUT_DIR"
 
+          echo "=== Disk space before download ==="
+          df -h /
+
           uv run ak-hrrr operational-update noaa-hrrr-alaska-forecast \
             --output "$OUTPUT_DIR"
 
-          # Store timestamp for later steps
           echo "ZARR_TIMESTAMP=$TIMESTAMP" >> $GITHUB_ENV
           echo "ZARR_DIR=$OUTPUT_DIR" >> $GITHUB_ENV
+
+          echo "=== Disk space after download ==="
+          df -h /
         env:
           PYTHONUNBUFFERED: 1
+
+      - name: Clean up downloads
+        run: |
+          rm -rf downloads/*
+          echo "=== Disk space after cleaning downloads ==="
+          df -h /
 
       - name: Generate catalog metadata
         run: |
           uv run python scripts/generate_catalog.py
 
-      - name: Clean up old forecasts (keep only last long + last short)
-        run: |
-          # Keep only:
-          # - Last long forecast (00, 06, 12, 18 UTC - 48 hours)
-          # - Last short forecast (03, 09, 15, 21 UTC - 18 hours)
-          echo "Cleaning up old forecasts..."
-
-          # Find most recent long forecast (00, 06, 12, 18 UTC)
-          LATEST_LONG=""
-          for zarr_dir in data/hrrr_alaska_*.zarr; do
-            if [ -d "$zarr_dir" ]; then
-              DIR_NAME=$(basename "$zarr_dir")
-              TIMESTAMP=$(echo "$DIR_NAME" | sed 's/hrrr_alaska_\(.*\)\.zarr/\1/')
-              HOUR="${TIMESTAMP:9:2}"
-
-              # Check if it's a long forecast cycle
-              if [[ "$HOUR" == "00" || "$HOUR" == "06" || "$HOUR" == "12" || "$HOUR" == "18" ]]; then
-                if [ -z "$LATEST_LONG" ] || [ "$TIMESTAMP" \> "$LATEST_LONG" ]; then
-                  LATEST_LONG="$TIMESTAMP"
-                fi
-              fi
-            fi
-          done
-
-          # Find most recent short forecast (03, 09, 15, 21 UTC)
-          LATEST_SHORT=""
-          for zarr_dir in data/hrrr_alaska_*.zarr; do
-            if [ -d "$zarr_dir" ]; then
-              DIR_NAME=$(basename "$zarr_dir")
-              TIMESTAMP=$(echo "$DIR_NAME" | sed 's/hrrr_alaska_\(.*\)\.zarr/\1/')
-              HOUR="${TIMESTAMP:9:2}"
-
-              # Check if it's a short forecast cycle
-              if [[ "$HOUR" == "03" || "$HOUR" == "09" || "$HOUR" == "15" || "$HOUR" == "21" ]]; then
-                if [ -z "$LATEST_SHORT" ] || [ "$TIMESTAMP" \> "$LATEST_SHORT" ]; then
-                  LATEST_SHORT="$TIMESTAMP"
-                fi
-              fi
-            fi
-          done
-
-          echo "Latest long forecast: $LATEST_LONG"
-          echo "Latest short forecast: $LATEST_SHORT"
-
-          # Delete all except the latest long and short
-          for zarr_dir in data/hrrr_alaska_*.zarr; do
-            if [ -d "$zarr_dir" ]; then
-              DIR_NAME=$(basename "$zarr_dir")
-              TIMESTAMP=$(echo "$DIR_NAME" | sed 's/hrrr_alaska_\(.*\)\.zarr/\1/')
-
-              # Keep if it's the latest long or short forecast
-              if [ "$TIMESTAMP" == "$LATEST_LONG" ] || [ "$TIMESTAMP" == "$LATEST_SHORT" ]; then
-                SIZE=$(du -sh "$zarr_dir" | cut -f1)
-                echo "Keeping: $zarr_dir ($SIZE)"
-              else
-                echo "Deleting: $zarr_dir"
-                rm -rf "$zarr_dir"
-              fi
-            fi
-          done
-
-          # List remaining zarr stores
-          echo ""
-          echo "Remaining forecasts:"
-          ls -lh data/hrrr_alaska_*.zarr 2>/dev/null || echo "No zarr stores found"
-
       - name: Generate data summary
         run: |
           mkdir -p data_summary
 
-          # Create summary of all zarr stores
-          echo "Alaska HRRR Zarr Datasets" > data_summary/README.md
-          echo "=========================" >> data_summary/README.md
-          echo "" >> data_summary/README.md
-          echo "Generated: $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> data_summary/README.md
-          echo "" >> data_summary/README.md
-          echo "Optimized storage - keeps only:" >> data_summary/README.md
-          echo "  - Last long forecast (00/06/12/18 UTC - 48 hours)" >> data_summary/README.md
-          echo "  - Last short forecast (03/09/15/21 UTC - 18 hours)" >> data_summary/README.md
-          echo "" >> data_summary/README.md
+          cat > data_summary/README.md << EOF
+          # Alaska HRRR Zarr Datasets
 
-          # List all zarr stores with sizes
-          echo "Available forecasts:" >> data_summary/README.md
-          for zarr_dir in data/hrrr_alaska_*.zarr; do
-            if [ -d "$zarr_dir" ]; then
-              SIZE=$(du -sh "$zarr_dir" | cut -f1)
-              echo "  - $(basename $zarr_dir): $SIZE" >> data_summary/README.md
-            fi
-          done
+          Generated: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
 
-          # Total size
-          TOTAL_SIZE=$(du -sh data/ | cut -f1)
-          echo "" >> data_summary/README.md
-          echo "Total data directory size: $TOTAL_SIZE" >> data_summary/README.md
+          ## Latest Forecast
+          - ${ZARR_DIR}
+          - Size: $(du -sh ${ZARR_DIR} | cut -f1)
 
-      - name: Commit and push data (rolling 24-hour window)
+          ## Data Access
+          Data is available as workflow artifacts (retained for 7 days).
+          For persistent access, use the catalog metadata at GitHub Pages.
+          EOF
+
+      - name: Commit catalog metadata only (no data)
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          # Add all data - catalog, summary, and zarr stores
+          # Only add catalog and summary - NOT the data
           git add catalog/
           git add data_summary/
-          git add data/hrrr_alaska_*.zarr/
+          git add .gitignore
 
-          # Only commit if there are changes
           if git diff --staged --quiet; then
             echo "No changes to commit"
           else
             TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
+            git commit -m "Update Alaska HRRR catalog - $TIMESTAMP"
 
-            # Count zarr stores
-            ZARR_COUNT=$(ls -d data/hrrr_alaska_*.zarr 2>/dev/null | wc -l)
-
-            git commit -m "Update Alaska HRRR catalog - $TIMESTAMP" \
-              -m "Added new forecast: $ZARR_DIR" \
-              -m "Keeping only last long (48hr) + last short (18hr) forecast ($ZARR_COUNT forecasts)"
-            git push
+            # Push with retry logic
+            for i in 1 2 3 4; do
+              if git push; then
+                echo "Push successful"
+                break
+              else
+                echo "Push failed, attempt $i of 4"
+                [ $i -lt 4 ] && sleep $((2 ** i))
+              fi
+            done
           fi
 
-      - name: Upload artifacts (catalog and summary)
+      - name: Upload data artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: hrrr-alaska-${{ env.ZARR_TIMESTAMP }}
+          path: data/hrrr_alaska_*.zarr/
+          retention-days: 7
+          compression-level: 6
+        if: always()
+
+      - name: Upload catalog artifact
         uses: actions/upload-artifact@v4
         with:
           name: hrrr-catalog-${{ github.run_number }}
