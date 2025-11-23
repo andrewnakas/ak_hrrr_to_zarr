@@ -119,11 +119,10 @@ jobs:
 
           ## Latest Forecast
           - ${ZARR_DIR}
-          - Size: $(du -sh ${ZARR_DIR} | cut -f1)
 
           ## Data Access
-          Data is available as workflow artifacts (retained for 7 days).
-          For persistent access, use the catalog metadata at GitHub Pages.
+          Catalog metadata is available at GitHub Pages.
+          Data is regenerated every 3 hours from NOAA sources.
           EOF
 
       - name: Commit catalog metadata only (no data)
@@ -154,15 +153,6 @@ jobs:
             done
           fi
 
-      - name: Upload data artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: hrrr-alaska-${{ env.ZARR_TIMESTAMP }}
-          path: data/hrrr_alaska_*.zarr/
-          retention-days: 7
-          compression-level: 6
-        if: always()
-
       - name: Upload catalog artifact
         uses: actions/upload-artifact@v4
         with:
@@ -170,7 +160,7 @@ jobs:
           path: |
             catalog/
             data_summary/
-          retention-days: 30
+          retention-days: 1
         if: always()
 
   deploy-pages:
