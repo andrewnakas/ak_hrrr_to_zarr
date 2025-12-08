@@ -1,0 +1,71 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.mypy_cache/
+.ruff_cache/
+
+# Data files (large, stored in git-lfs or external storage)
+*.grib2
+*.grb2
+*.nc
+downloads/
+tmp/
+
+# Zarr stores - allow timestamped forecasts (rolling 24-hour window)
+# These are committed to git for the last 8 cycles (~3.3 GB total)
+# Older forecasts are automatically deleted by the workflow
+
+# Templates
+templates/*.zarr/
+
+# Logs
+*.log
+
+# Environment variables
+.env.local
+.env.*.local
+
+# OS
+Thumbs.db
