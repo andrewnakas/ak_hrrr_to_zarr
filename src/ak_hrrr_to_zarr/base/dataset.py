@@ -84,19 +84,9 @@ class Dataset(ABC, Generic[DataVarT, SourceFileCoordT]):
 
         # Use zarr_format=2 for compatibility with standard tools
         # This uses the older, more stable zarr v2 format
-        if output_path.exists():
-            # Append mode
-            ds.to_zarr(
-                output_path,
-                mode="a",
-                append_dim=self.template_config.append_dim,
-                zarr_format=2,
-            )
-        else:
-            # Create new with compression
-            # Let xarray handle encoding automatically with zarr v2
-            ds.to_zarr(
-                output_path,
-                mode="w",
-                zarr_format=2,
-            )
+        # For operational updates, always overwrite to ensure fresh data
+        ds.to_zarr(
+            output_path,
+            mode="w",  # Always overwrite - operational updates get latest forecast only
+            zarr_format=2,
+        )
