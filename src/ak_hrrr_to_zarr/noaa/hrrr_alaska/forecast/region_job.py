@@ -244,12 +244,6 @@ class AlaskaHrrrForecastRegionJob(RegionJob[DataVariableConfig, AlaskaHrrrSource
         # Data is usually available ~2 hours after init time
         now = datetime.utcnow()
 
-        # For testing/development: use a known good date if system time seems wrong
-        # (GitHub Actions might have clock skew or we might be in the future during testing)
-        if now.year >= 2025:
-            print(f"Warning: System time is {now}, using 2024-11-13 for testing")
-            now = datetime(2024, 11, 13, 12, 0, 0)
-
         # Round down to the most recent 3-hour cycle
         hours_since_midnight = now.hour
         init_hour = (hours_since_midnight // 3) * 3
