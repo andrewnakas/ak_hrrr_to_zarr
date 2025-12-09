@@ -242,17 +242,22 @@ class AlaskaHrrrForecastRegionJob(RegionJob[DataVariableConfig, AlaskaHrrrSource
         # Get the most recent init time
         # Alaska HRRR cycles: 00, 03, 06, 09, 12, 15, 18, 21 UTC
         # Data is usually available ~2 hours after init time
+        # For operational updates, prefer main cycles (00/06/12/18 UTC) which have 48-hour forecasts
+        # Intermediate cycles (03/09/15/21 UTC) only have 18-hour forecasts
         now = datetime.utcnow()
 
-        # Round down to the most recent 3-hour cycle
+        # Round down to the most recent 6-hour main cycle (00, 06, 12, 18 UTC)
+        # This ensures we get the full 48-hour forecast
         hours_since_midnight = now.hour
-        init_hour = (hours_since_midnight // 3) * 3
+        init_hour = (hours_since_midnight // 6) * 6
 
-        # Go back one cycle to ensure data is available
+        # Go back one cycle if we're too close to the current cycle
+        # (data may not be available yet)
         init_time = now.replace(hour=init_hour, minute=0, second=0, microsecond=0)
-        init_time -= timedelta(hours=3)
+        if (now - init_time).total_seconds() < 2 * 3600:  # Less than 2 hours old
+            init_time -= timedelta(hours=6)
 
-        print(f"Fetching Alaska HRRR data for init time: {init_time} UTC")
+        print(f"Fetching Alaska HRRR data for init time: {init_time} UTC (48-hour forecast)")
 
         # Create a processing region for just this init time
         processing_region = ProcessingRegion(
