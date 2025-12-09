@@ -64,8 +64,30 @@ class AlaskaHrrrTemplateConfig(TemplateConfig[DataVariableConfig]):
         # Spatial coordinates (Alaska HRRR grid: 1299 x 919)
         # Polar stereographic projection
         # Grid spacing: 3km (3000m)
-        x = np.arange(1299, dtype=np.float64) * 3000.0  # meters
-        y = np.arange(919, dtype=np.float64) * 3000.0  # meters
+        # The grid starts at 41.612949°N, 185.117126°E (from GRIB metadata)
+        # We need to calculate the projection coordinates of this first grid point
+        # and use that as the origin for our x/y arrays
+
+        # First, create a temporary projection to find the x_0, y_0 offset
+        proj_temp = pyproj.Proj(
+            proj="stere",
+            lat_0=90.0,
+            lon_0=225.0,
+            lat_ts=60.0,
+            x_0=0.0,
+            y_0=0.0,
+            R=6371229.0,
+        )
+
+        # Convert first grid point to projection coordinates
+        # Longitude: 185.117126°E = -174.882874°W
+        first_lon = 185.117126 - 360.0  # Convert to -180 to 180 range
+        first_lat = 41.612949
+        x_first, y_first = proj_temp(first_lon, first_lat)
+
+        # Now create x/y arrays starting from the first grid point
+        x = x_first + np.arange(1299, dtype=np.float64) * 3000.0  # meters
+        y = y_first + np.arange(919, dtype=np.float64) * 3000.0  # meters
 
         return {
             "time": times,

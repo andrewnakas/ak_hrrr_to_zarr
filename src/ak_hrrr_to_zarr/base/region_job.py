@@ -170,16 +170,17 @@ class RegionJob(ABC, Generic[DataVarT, SourceFileCoordT]):
 
         times = np.array(times, dtype='datetime64[ns]')
 
-        # Get other dimension coordinates
-        steps = np.arange(0, 49, dtype='timedelta64[h]')
-        x = np.arange(1299, dtype=np.float64) * 3000.0
-        y = np.arange(919, dtype=np.float64) * 3000.0
+        # Get dimension coordinates from template config
+        # This ensures we use the correct projection offsets
+        from datetime import datetime as dt
+        end_time = self.processing_region.init_time_end + timedelta(days=7)
+        all_dim_coords = self.template_config.dimension_coordinates(end_time)
 
         dim_coords = {
             'time': times,
-            'step': steps,
-            'y': y,
-            'x': x,
+            'step': all_dim_coords['step'],
+            'y': all_dim_coords['y'],
+            'x': all_dim_coords['x'],
         }
 
         # Build coordinates
