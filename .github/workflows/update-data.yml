@@ -1,38 +1,51 @@
 name: Update Alaska HRRR Data
 
 on:
-  # Run every 3 hours to match Alaska HRRR update frequency
   schedule:
-    - cron: '15 0,3,6,9,12,15,18,21 * * *'  # 15 minutes after each cycle
-
-  # Allow manual triggering
-  workflow_dispatch:
-
-  # Run on push to main for testing
+    # Run every 3 hours to match Alaska HRRR update frequency
+    - cron: '15 0,3,6,9,12,15,18,21 * * *'
+  workflow_dispatch:  # Allow manual triggering
   push:
     branches:
       - main
       - claude/**
 
-permissions:
-  contents: write
-  pages: write
-  id-token: write
-
-# Only allow one update at a time
 concurrency:
   group: data-update
   cancel-in-progress: false
 
 jobs:
-  update:
+  update-data:
     runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: write
+      pages: write
+      id-token: write
 
     steps:
+      - name: Free up disk space
+        run: |
+          echo "=== Disk space before cleanup ==="
+          df -h
+
+          # Remove unnecessary pre-installed software
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+
+          # Clean package manager caches
+          sudo apt-get clean
+          sudo rm -rf /var/lib/apt/lists/*
+
+          echo "=== Disk space after cleanup ==="
+          df -h
+
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Full history for proper commits
+          fetch-depth: 1  # Shallow clone - only fetch latest commit
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -41,198 +54,147 @@ jobs:
 
       - name: Install uv
         uses: astral-sh/setup-uv@v3
-        with:
-          enable-cache: true
 
-      - name: Install dependencies
-        run: |
-          uv sync --all-extras
-
-      - name: Create data directory
+      - name: Create necessary directories
         run: |
           mkdir -p data
-          mkdir -p downloads
+          mkdir -p catalog
+          mkdir -p data_summary
+
+      - name: Install package
+        run: |
+          uv pip install --system -e .
 
       - name: Run operational update
+        timeout-minutes: 60
         run: |
-          # Determine the most recent valid HRRR cycle (00, 03, 06, 09, 12, 15, 18, 21 UTC)
-          CURRENT_HOUR=$(date -u +"%H")
-
-          # Round down to nearest 3-hour cycle
-          CYCLE_HOUR=$((CURRENT_HOUR / 3 * 3))
-
-          # Format with leading zero
-          CYCLE_HOUR=$(printf "%02d" $CYCLE_HOUR)
-
-          # Create timestamp with valid cycle hour
-          TIMESTAMP=$(date -u +"%Y%m%d")_${CYCLE_HOUR}
-          OUTPUT_DIR="data/hrrr_alaska_${TIMESTAMP}.zarr"
-
-          echo "Current UTC hour: $CURRENT_HOUR"
-          echo "Using HRRR cycle: $CYCLE_HOUR UTC"
-          echo "Creating Zarr store: $OUTPUT_DIR"
-
+          set -e  # Exit on any error
           uv run ak-hrrr operational-update noaa-hrrr-alaska-forecast \
-            --output "$OUTPUT_DIR"
-
-          # Store timestamp for later steps
-          echo "ZARR_TIMESTAMP=$TIMESTAMP" >> $GITHUB_ENV
-          echo "ZARR_DIR=$OUTPUT_DIR" >> $GITHUB_ENV
+            --output data/noaa-hrrr-alaska-forecast.zarr
         env:
           PYTHONUNBUFFERED: 1
+
+      - name: Verify Zarr store was created
+        run: |
+          if [ ! -f "data/noaa-hrrr-alaska-forecast.zarr/.zmetadata" ]; then
+            echo "ERROR: Zarr store metadata was not created!"
+            echo "Contents of data directory:"
+            ls -la data/
+            exit 1
+          fi
+
+          # Check that at least one variable has actual data chunks (not just .zarray/.zattrs)
+          # Variables should have chunk files like t2m/0.0.0.0 or similar
+          data_chunks=$(find data/noaa-hrrr-alaska-forecast.zarr/t2m -type f ! -name ".z*" 2>/dev/null | wc -l)
+          if [ "$data_chunks" -eq 0 ]; then
+            echo "ERROR: Zarr store structure exists but NO VARIABLE DATA was written!"
+            echo "This means the operational update failed to populate weather data."
+            echo ""
+            echo "Checking what files exist for t2m variable:"
+            ls -la data/noaa-hrrr-alaska-forecast.zarr/t2m/ || echo "t2m directory not found"
+            echo ""
+            echo "Checking for any data chunks in entire store:"
+            find data/noaa-hrrr-alaska-forecast.zarr -type f ! -name ".z*" | head -20
+            exit 1
+          fi
+
+          echo "✅ Zarr store created successfully with $data_chunks data chunk(s) for t2m variable"
 
       - name: Generate catalog metadata
         run: |
           uv run python scripts/generate_catalog.py
 
-      - name: Clean up old forecasts (keep only last long + last short)
+      - name: Create summary document
         run: |
-          # Keep only:
-          # - Last long forecast (00, 06, 12, 18 UTC - 48 hours)
-          # - Last short forecast (03, 09, 15, 21 UTC - 18 hours)
-          echo "Cleaning up old forecasts..."
-
-          # Find most recent long forecast (00, 06, 12, 18 UTC)
-          LATEST_LONG=""
-          for zarr_dir in data/hrrr_alaska_*.zarr; do
-            if [ -d "$zarr_dir" ]; then
-              DIR_NAME=$(basename "$zarr_dir")
-              TIMESTAMP=$(echo "$DIR_NAME" | sed 's/hrrr_alaska_\(.*\)\.zarr/\1/')
-              HOUR="${TIMESTAMP:9:2}"
-
-              # Check if it's a long forecast cycle
-              if [[ "$HOUR" == "00" || "$HOUR" == "06" || "$HOUR" == "12" || "$HOUR" == "18" ]]; then
-                if [ -z "$LATEST_LONG" ] || [ "$TIMESTAMP" \> "$LATEST_LONG" ]; then
-                  LATEST_LONG="$TIMESTAMP"
-                fi
-              fi
-            fi
-          done
-
-          # Find most recent short forecast (03, 09, 15, 21 UTC)
-          LATEST_SHORT=""
-          for zarr_dir in data/hrrr_alaska_*.zarr; do
-            if [ -d "$zarr_dir" ]; then
-              DIR_NAME=$(basename "$zarr_dir")
-              TIMESTAMP=$(echo "$DIR_NAME" | sed 's/hrrr_alaska_\(.*\)\.zarr/\1/')
-              HOUR="${TIMESTAMP:9:2}"
-
-              # Check if it's a short forecast cycle
-              if [[ "$HOUR" == "03" || "$HOUR" == "09" || "$HOUR" == "15" || "$HOUR" == "21" ]]; then
-                if [ -z "$LATEST_SHORT" ] || [ "$TIMESTAMP" \> "$LATEST_SHORT" ]; then
-                  LATEST_SHORT="$TIMESTAMP"
-                fi
-              fi
-            fi
-          done
-
-          echo "Latest long forecast: $LATEST_LONG"
-          echo "Latest short forecast: $LATEST_SHORT"
-
-          # Delete all except the latest long and short
-          for zarr_dir in data/hrrr_alaska_*.zarr; do
-            if [ -d "$zarr_dir" ]; then
-              DIR_NAME=$(basename "$zarr_dir")
-              TIMESTAMP=$(echo "$DIR_NAME" | sed 's/hrrr_alaska_\(.*\)\.zarr/\1/')
-
-              # Keep if it's the latest long or short forecast
-              if [ "$TIMESTAMP" == "$LATEST_LONG" ] || [ "$TIMESTAMP" == "$LATEST_SHORT" ]; then
-                SIZE=$(du -sh "$zarr_dir" | cut -f1)
-                echo "Keeping: $zarr_dir ($SIZE)"
-              else
-                echo "Deleting: $zarr_dir"
-                rm -rf "$zarr_dir"
-              fi
-            fi
-          done
-
-          # List remaining zarr stores
-          echo ""
-          echo "Remaining forecasts:"
-          ls -lh data/hrrr_alaska_*.zarr 2>/dev/null || echo "No zarr stores found"
-
-      - name: Generate data summary
-        run: |
-          mkdir -p data_summary
-
-          # Create summary of all zarr stores
-          echo "Alaska HRRR Zarr Datasets" > data_summary/README.md
-          echo "=========================" >> data_summary/README.md
+          # Create summary of zarr store
+          echo "Alaska HRRR Zarr Dataset" > data_summary/README.md
+          echo "========================" >> data_summary/README.md
           echo "" >> data_summary/README.md
           echo "Generated: $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> data_summary/README.md
           echo "" >> data_summary/README.md
-          echo "Optimized storage - keeps only:" >> data_summary/README.md
-          echo "  - Last long forecast (00/06/12/18 UTC - 48 hours)" >> data_summary/README.md
-          echo "  - Last short forecast (03/09/15/21 UTC - 18 hours)" >> data_summary/README.md
-          echo "" >> data_summary/README.md
 
-          # List all zarr stores with sizes
-          echo "Available forecasts:" >> data_summary/README.md
-          for zarr_dir in data/hrrr_alaska_*.zarr; do
-            if [ -d "$zarr_dir" ]; then
-              SIZE=$(du -sh "$zarr_dir" | cut -f1)
-              echo "  - $(basename $zarr_dir): $SIZE" >> data_summary/README.md
-            fi
-          done
+          if [ -d "data/noaa-hrrr-alaska-forecast.zarr" ]; then
+            SIZE=$(du -sh data/noaa-hrrr-alaska-forecast.zarr | cut -f1)
+            echo "Dataset: noaa-hrrr-alaska-forecast.zarr ($SIZE)" >> data_summary/README.md
+          fi
 
-          # Total size
-          TOTAL_SIZE=$(du -sh data/ | cut -f1)
-          echo "" >> data_summary/README.md
-          echo "Total data directory size: $TOTAL_SIZE" >> data_summary/README.md
-
-      - name: Commit and push data (rolling 24-hour window)
+      - name: Configure Git
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          # Add all data - catalog, summary, and zarr stores
-          git add catalog/
-          git add data_summary/
-          git add data/hrrr_alaska_*.zarr/
+      - name: Commit and push changes
+        run: |
+          git add data/ catalog/ data_summary/
+          if ! git diff --staged --quiet; then
+            git commit -m "Update Alaska HRRR data - $(date -u +'%Y-%m-%d %H:%M UTC')"
 
-          # Only commit if there are changes
-          if git diff --staged --quiet; then
-            echo "No changes to commit"
+            # Aggressive git cleanup to prevent repository bloat
+            echo "=== Running git cleanup to save space ==="
+            git reflog expire --expire=now --all
+            git gc --aggressive --prune=now
+
+            # Show repository size
+            echo "Repository size after cleanup:"
+            du -sh .git
+
+            # Retry push up to 3 times with pull --rebase if needed
+            for attempt in 1 2 3; do
+              if git push; then
+                echo "Successfully pushed on attempt $attempt"
+                break
+              elif [ $attempt -lt 3 ]; then
+                echo "Push failed on attempt $attempt, pulling and retrying..."
+                git pull --rebase --depth=1 origin $(git branch --show-current)
+              else
+                echo "Failed to push after 3 attempts"
+                exit 1
+              fi
+            done
           else
-            TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
-
-            # Count zarr stores
-            ZARR_COUNT=$(ls -d data/hrrr_alaska_*.zarr 2>/dev/null | wc -l)
-
-            git commit -m "Update Alaska HRRR catalog - $TIMESTAMP" \
-              -m "Added new forecast: $ZARR_DIR" \
-              -m "Keeping only last long (48hr) + last short (18hr) forecast ($ZARR_COUNT forecasts)"
-            git push
+            echo "No changes to commit"
           fi
 
-      - name: Upload artifacts (catalog and summary)
+      - name: Monitor final disk space
+        if: always()
+        run: |
+          echo "=== Final disk space usage ==="
+          df -h
+          echo "=== Repository size ==="
+          du -sh .git
+          echo "=== Data directory size ==="
+          du -sh data/ || echo "No data directory"
+
+      - name: Upload catalog for Pages deployment
         uses: actions/upload-artifact@v4
         with:
-          name: hrrr-catalog-${{ github.run_number }}
-          path: |
-            catalog/
-            data_summary/
-          retention-days: 30
-        if: always()
+          name: catalog-artifact
+          path: catalog/
+          retention-days: 1
 
-  deploy-pages:
-    needs: update
+  deploy-catalog:
+    needs: update-data
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
 
     steps:
       - name: Download catalog artifact
         uses: actions/download-artifact@v4
         with:
-          name: hrrr-catalog-${{ github.run_number }}
-          path: ./
+          name: catalog-artifact
+          path: catalog
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
 
-      - name: Upload Pages artifact
+      - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: catalog/
+          path: './catalog'
 
       - name: Deploy to GitHub Pages
+        id: deployment
         uses: actions/deploy-pages@v4
