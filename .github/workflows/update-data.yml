@@ -123,31 +123,57 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
+      - name: Debug - Check what will be committed
+        run: |
+          echo "=== Files in data directory ==="
+          ls -lh data/ || echo "No data directory"
+          echo ""
+          echo "=== Size of zarr store ==="
+          du -sh data/noaa-hrrr-alaska-forecast.zarr || echo "No zarr store"
+          echo ""
+          echo "=== Git status before add ==="
+          git status
+
       - name: Commit and push changes
         run: |
-          git add data/ catalog/ data_summary/
+          # Add files
+          git add catalog/ data_summary/
+
+          # For zarr data, add with force to ensure large files are included
+          git add -f data/noaa-hrrr-alaska-forecast.zarr/ || echo "Warning: Could not add zarr store"
+
+          echo "=== Git status after add ==="
+          git status
+
           if ! git diff --staged --quiet; then
-            git commit -m "Update Alaska HRRR data - $(date -u +'%Y-%m-%d %H:%M UTC')"
+            TIMESTAMP=$(date -u +'%Y-%m-%d %H:%M UTC')
+            SIZE=$(du -sh data/noaa-hrrr-alaska-forecast.zarr 2>/dev/null | cut -f1 || echo "unknown")
 
-            # Aggressive git cleanup to prevent repository bloat
-            echo "=== Running git cleanup to save space ==="
-            git reflog expire --expire=now --all
-            git gc --aggressive --prune=now
+            git commit -m "Update Alaska HRRR data - $TIMESTAMP" \
+              -m "Zarr store size: $SIZE" \
+              -m "This commit includes the complete zarr directory structure with all data chunks"
 
-            # Show repository size
-            echo "Repository size after cleanup:"
+            echo "=== Commit created, preparing to push ==="
+            echo "Repository size:"
             du -sh .git
 
-            # Retry push up to 3 times with pull --rebase if needed
+            # Try to push with increased buffer and timeout
+            git config http.postBuffer 524288000  # 500MB buffer
+            git config http.lowSpeedLimit 0
+            git config http.lowSpeedTime 999999
+
+            # Retry push up to 3 times
             for attempt in 1 2 3; do
-              if git push; then
+              echo "Push attempt $attempt of 3..."
+              if timeout 600 git push; then  # 10 minute timeout
                 echo "Successfully pushed on attempt $attempt"
                 break
               elif [ $attempt -lt 3 ]; then
-                echo "Push failed on attempt $attempt, pulling and retrying..."
-                git pull --rebase --depth=1 origin $(git branch --show-current)
+                echo "Push failed on attempt $attempt, retrying..."
+                sleep 10
               else
                 echo "Failed to push after 3 attempts"
+                echo "This may be due to large file size. Consider using Git LFS or cloud storage."
                 exit 1
               fi
             done

@@ -23,12 +23,19 @@ def generate_catalog() -> None:
         "datasets": [],
     }
 
-    # Find all zarr stores (timestamped directories)
-    zarr_stores = sorted(data_dir.glob("hrrr_alaska_*.zarr"), reverse=True)
+    # Find all zarr stores
+    # Look for the standard operational update zarr store first
+    zarr_path = data_dir / "noaa-hrrr-alaska-forecast.zarr"
 
-    if zarr_stores:
-        # Process the most recent zarr store for metadata
-        zarr_path = zarr_stores[0]
+    # Fall back to timestamped zarr stores if the main one doesn't exist
+    if not zarr_path.exists():
+        zarr_stores = sorted(data_dir.glob("hrrr_alaska_*.zarr"), reverse=True)
+        if zarr_stores:
+            zarr_path = zarr_stores[0]
+        else:
+            zarr_path = None
+
+    if zarr_path and zarr_path.exists():
         try:
             ds = xr.open_zarr(zarr_path)
 
@@ -48,8 +55,7 @@ def generate_catalog() -> None:
                     "end": str(ds.time.max().values),
                 },
                 "zarr_path": str(zarr_path),
-                "forecast_cycles": len(zarr_stores),
-                "available_forecasts": [str(p.name) for p in zarr_stores],
+                "zarr_url": f"https://raw.githubusercontent.com/andrewnakas/ak_hrrr_to_zarr/main/{zarr_path}",
             }
 
             catalog["datasets"].append(dataset_info)
