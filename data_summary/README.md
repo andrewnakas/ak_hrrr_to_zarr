@@ -1,9 +1,9 @@
 # Alaska HRRR Zarr Datasets
 
-Generated: 2025-12-10 13:11:26 UTC
+Generated: 2025-12-10 15:46:14 UTC
 
 ## Latest Forecast
-- data/hrrr_alaska_20251210_12.zarr
+- data/hrrr_alaska_20251210_15.zarr
 
 ## Data Access
 Catalog metadata is available at GitHub Pages.
